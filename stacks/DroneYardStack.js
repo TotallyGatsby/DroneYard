@@ -3,9 +3,15 @@ import { Api, Bucket } from '@serverless-stack/resources';
 import * as batch from '@aws-cdk/aws-batch-alpha';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
+import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
+import { Duration } from 'aws-cdk-lib';
 
 const fs = require('fs');
+const path = require('path');
 const awsConfig = require('../awsconfig.json');
+
+// eslint-disable-next-line no-underscore-dangle
+const __dirname = path.resolve();
 
 export default function DroneYardStack({ stack }) {
   // Storage for inputs and outputs from Open Drone Map
@@ -62,7 +68,7 @@ export default function DroneYardStack({ stack }) {
     },
   });
 
-  // Create our job queue
+  // Create our AWS Batch job queue
   const jobQueue = new batch.JobQueue(stack, 'DroneYardJobQueue', {
     computeEnvironments: [
       {
@@ -71,6 +77,43 @@ export default function DroneYardStack({ stack }) {
         order: 1,
       },
     ],
+  });
+
+  // Create our guest image (e.g. the docker image)
+  const dockerImage = new DockerImageAsset(stack, 'DroneYardDockerImage', {
+    directory: path.join(__dirname, 'docker'),
+  });
+
+  // Create our AWS Batch Job Definition
+  const jobDefinition = new batch.JobDefinition(stack, 'DroneYardJobDefinition', {
+    container: {
+      command: [`sh -c /entry.sh ${dronePhotosBucket.bucketName} output`],
+      gpuCount: 1,
+      image: ecs.ContainerImage.fromEcrRepository(
+        dockerImage.repository,
+        'latest',
+      ),
+      // TODO: Create the docker image in ECR?
+      logConfiguration: {
+        logDriver: batch.LogDriver.AWSLOGS,
+      },
+      memoryLimitMiB: 256000,
+      mountPoints: [{
+        containerPath: '/local',
+        readOnly: false,
+        sourceVolume: 'local',
+      }],
+      privileged: true,
+
+      vcpus: 16,
+      volumes: [{
+        name: 'local',
+        host: {
+          sourcePath: '/local',
+        },
+      }],
+    },
+    timeout: Duration.hours(24),
   });
 
   // Console outputs
