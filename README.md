@@ -13,3 +13,7 @@ language of choice throughout the project.
 
 The goal is to make setup and deployment as simple as possible, and rely only on an AWS account and
 NPM.
+
+## Current Status
+In active development. The project can create *most* of the resources needed to launch an ODM job
+but is not actually capable to running ODM yet.
