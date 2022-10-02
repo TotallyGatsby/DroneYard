@@ -1,4 +1,4 @@
-#DroneYard - OpenDroneMap Serverless Automation
+# DroneYard - OpenDroneMap Serverless Automation
 
 DroneYard makes running OpenDroneMap automatically as simple as uploading your images and downloading
 the results. DroneYard is a set of automated tooling built on top of AWS Batch that monitors
