@@ -4,6 +4,7 @@ import * as batch from '@aws-cdk/aws-batch-alpha';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 
+const fs = require('fs');
 const awsConfig = require('../awsconfig.json');
 
 export default function DroneYardStack({ stack }) {
@@ -31,13 +32,22 @@ export default function DroneYardStack({ stack }) {
 
   // Create our AWS Batch resources
   // Create VPC, so this project won't interfere with other things
-  const vpc = new ec2.Vpc(this, 'DroneYardVPC');
+  const vpc = new ec2.Vpc(stack, 'DroneYardVPC');
+
+  // Create our launch template (mainly we need to attach the userdata.sh script as user data)
+  const userData = fs.readFileSync('./userdata.sh', 'base64').toString();
+  const launchTemplate = new ec2.CfnLaunchTemplate(stack, 'DroneYardLaunchTemplate', {
+    launchTemplateName: 'DroneYardLaunchTemplate',
+    launchTemplateData: {
+      userData,
+    },
+  });
 
   // Get the latest GPU AMI
   const image = ecs.EcsOptimizedImage.amazonLinux2(ecs.AmiHardwareType.GPU);
 
   // Compute environment
-  const awsManagedEnvironment = new batch.ComputeEnvironment(this, 'DroneYardComputeEnvironment', {
+  const awsManagedEnvironment = new batch.ComputeEnvironment(stack, 'DroneYardComputeEnvironment', {
     computeResources: {
       type: batch.ComputeResourceType.SPOT,
       bidPercentage: awsConfig.computeEnv.bidPercentage,
@@ -46,7 +56,21 @@ export default function DroneYardStack({ stack }) {
       instanceTypes: awsConfig.computeEnv.instanceTypes,
       vpc,
       image,
+      launchTemplate: {
+        launchTemplateName: launchTemplate.launchTemplateName,
+      },
     },
+  });
+
+  // Create our job queue
+  const jobQueue = new batch.JobQueue(stack, 'DroneYardJobQueue', {
+    computeEnvironments: [
+      {
+        // Defines a collection of compute resources to handle assigned batch jobs
+        computeEnvironment: awsManagedEnvironment,
+        order: 1,
+      },
+    ],
   });
 
   // Console outputs
