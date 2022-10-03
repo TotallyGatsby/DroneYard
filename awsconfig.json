@@ -2,7 +2,7 @@
   "computeEnv": {
     "minvCpus": 1,
     "maxvCpus": 128,
-    "bidPercentage": 75,
+    "bidPercentage": 100,
     "instanceTypes": [
       "g4dn.8xlarge"
     ]

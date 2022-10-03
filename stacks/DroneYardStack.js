@@ -14,20 +14,6 @@ const awsConfig = require('../awsconfig.json');
 const __dirname = path.resolve();
 
 export default function DroneYardStack({ stack }) {
-  // Storage for inputs and outputs from Open Drone Map
-  // When the s3 bucket receives a 'dispatch' file, it will kick off the process
-  const dronePhotosBucket = new Bucket(stack, 'DronePhotos', {
-    notifications: {
-      dispatch_notification: {
-        function: 'functions/dispatch_batch_job.handler',
-        events: ['object_created'], // TODO: Consider whether tags make more sense than files?
-        filters: [{ suffix: 'dispatch' }],
-      },
-    },
-  });
-
-  dronePhotosBucket.attachPermissions(['s3']);
-
   // TODO: Create the API for dispatching an AWS batch job, should not be callable directly
   // only from S3 events, so this probably will get deleted in the future
   const api = new Api(stack, 'api', {
@@ -87,7 +73,14 @@ export default function DroneYardStack({ stack }) {
   // Create our AWS Batch Job Definition
   const jobDefinition = new batch.JobDefinition(stack, 'DroneYardJobDefinition', {
     container: {
-      command: [`sh -c /entry.sh ${dronePhotosBucket.bucketName} output`],
+      command: [
+        'sh',
+        '-c',
+        '/entry.sh',
+        'Ref::bucket',
+        'Ref::key',
+        'output',
+      ],
       gpuCount: 1,
       image: ecs.ContainerImage.fromEcrRepository(
         dockerImage.repository,
@@ -104,7 +97,6 @@ export default function DroneYardStack({ stack }) {
         sourceVolume: 'local',
       }],
       privileged: true,
-
       vcpus: 16,
       volumes: [{
         name: 'local',
@@ -115,6 +107,28 @@ export default function DroneYardStack({ stack }) {
     },
     timeout: Duration.hours(24),
   });
+
+  // Storage for inputs and outputs from Open Drone Map
+  // When the s3 bucket receives a 'dispatch' file, it will kick off the process
+  const dronePhotosBucket = new Bucket(stack, 'DronePhotos', {
+    defaults: {
+      function: {
+        environment: {
+          JOB_DEFINITION: jobDefinition.jobDefinitionName,
+          JOB_QUEUE: jobQueue.jobQueueName,
+        },
+      },
+    },
+    notifications: {
+      dispatch_notification: {
+        function: 'functions/dispatch_batch_job.handler',
+        events: ['object_created'], // TODO: Consider whether tags make more sense than files?
+        filters: [{ suffix: 'dispatch' }],
+      },
+    },
+  });
+
+  dronePhotosBucket.attachPermissions(['s3', 'batch']);
 
   // Console outputs
   stack.addOutputs({
