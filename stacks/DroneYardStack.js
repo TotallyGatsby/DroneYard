@@ -24,7 +24,11 @@ export default function DroneYardStack({ stack }) {
 
   // Create our AWS Batch resources
   // Create VPC, so this project won't interfere with other things
-  const vpc = new ec2.Vpc(stack, 'DroneYardVPC');
+  const vpc = ec2.Vpc.fromLookup(stack, 'VPC', {
+    // This imports the default VPC but you can also
+    // specify a 'vpcName' or 'tags'.
+    isDefault: true,
+  });
 
   // Create our launch template (mainly we need to attach the userdata.sh script as user data)
   const userData = fs.readFileSync('./userdata.sh', 'base64').toString();
@@ -35,8 +39,13 @@ export default function DroneYardStack({ stack }) {
     },
   });
 
-  // Get the latest GPU AMI
-  const image = ecs.EcsOptimizedImage.amazonLinux2(ecs.AmiHardwareType.GPU);
+  // Get the latest GPU or Standard AMI
+  let image;
+  if (awsConfig.computeEnv.useGpu) {
+    image = ecs.EcsOptimizedImage.amazonLinux2(ecs.AmiHardwareType.GPU);
+  } else {
+    image = ecs.EcsOptimizedImage.amazonLinux2(ecs.AmiHardwareType.ARM);
+  }
 
   // Compute environment
   const awsManagedEnvironment = new batch.ComputeEnvironment(stack, 'DroneYardComputeEnvironment', {
@@ -67,37 +76,34 @@ export default function DroneYardStack({ stack }) {
 
   // Create our guest image (e.g. the docker image)
   const dockerImage = new DockerImageAsset(stack, 'DroneYardDockerImage', {
-    directory: path.join(__dirname, 'docker'),
+    directory: path.join(__dirname, awsConfig.computeEnv.useGpu ? 'dockergpu' : 'docker'),
   });
 
   // Create our AWS Batch Job Definition
   const jobDefinition = new batch.JobDefinition(stack, 'DroneYardJobDefinition', {
     container: {
       command: [
-        'sh',
-        '-c',
+        //'sh',
+        //'-c',
         '/entry.sh',
         'Ref::bucket',
         'Ref::key',
         'output',
       ],
-      gpuCount: 1,
-      image: ecs.ContainerImage.fromEcrRepository(
-        dockerImage.repository,
-        'latest',
-      ),
+      gpuCount: awsConfig.computeEnv.useGpu ? 1 : 0,
+      image: ecs.ContainerImage.fromDockerImageAsset(dockerImage),
       // TODO: Create the docker image in ECR?
       logConfiguration: {
         logDriver: batch.LogDriver.AWSLOGS,
       },
-      memoryLimitMiB: 256000,
+      memoryLimitMiB: 120000,
       mountPoints: [{
         containerPath: '/local',
         readOnly: false,
         sourceVolume: 'local',
       }],
       privileged: true,
-      vcpus: 16,
+      vcpus: 0,
       volumes: [{
         name: 'local',
         host: {

@@ -1,8 +1,8 @@
-FROM opendronemap/odm:gpu as build
+FROM opendronemap/odm as build
 
 RUN pip3 install awscli
 
-COPY entry.sh /
+COPY --chmod=777 entry.sh /
 
-# TODO: Is this strictly necessary?
+# Override the default ENTRYPOINT from the ODM image
 ENTRYPOINT [ "/entry.sh" ]

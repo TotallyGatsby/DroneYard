@@ -1,10 +1,11 @@
 {
   "computeEnv": {
-    "minvCpus": 1,
+    "useGpu": false,
+    "minvCpus": 0,
     "maxvCpus": 128,
     "bidPercentage": 100,
     "instanceTypes": [
-      "g4dn.8xlarge"
+      "r6gd.4xlarge"
     ]
   }
 }
