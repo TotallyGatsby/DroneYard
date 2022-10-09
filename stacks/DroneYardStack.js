@@ -15,8 +15,7 @@ const awsConfig = require('../awsconfig.json');
 const __dirname = path.resolve();
 
 export default function DroneYardStack({ stack }) {
-  // Create our AWS Batch resources
-  // Create VPC, so this project won't interfere with other things
+  // Get the default VPC
   const vpc = ec2.Vpc.fromLookup(stack, 'VPC', {
     // This imports the default VPC but you can also
     // specify a 'vpcName' or 'tags'.
@@ -32,7 +31,8 @@ export default function DroneYardStack({ stack }) {
     },
   });
 
-  // Get the latest GPU or Standard AMI
+  // Get the latest GPU or ARM AMI for our EC2 container host.
+  // TODO: This could figure out the instance type to determine which AMI to get
   let image;
   if (awsConfig.computeEnv.useGpu) {
     image = ecs.EcsOptimizedImage.amazonLinux2(ecs.AmiHardwareType.GPU);
@@ -40,7 +40,8 @@ export default function DroneYardStack({ stack }) {
     image = ecs.EcsOptimizedImage.amazonLinux2(ecs.AmiHardwareType.ARM);
   }
 
-  // Compute environment
+  // Create the IAM role so the docker container can access S3. (These are the permissions on the
+  // instance that the Spot request spins up.)
   const dockerRole = new iam.Role(stack, 'instance-role', {
     assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
     description: 'Execution role for the docker container, has access to the DroneYard S3 bucket',
@@ -52,6 +53,7 @@ export default function DroneYardStack({ stack }) {
     roles: [dockerRole.roleName],
   });
 
+  // Compute environment (AWS Batch Resources)
   const awsManagedEnvironment = new batch.ComputeEnvironment(stack, 'DroneYardComputeEnvironment', {
     computeResources: {
       type: batch.ComputeResourceType.SPOT,
@@ -68,7 +70,7 @@ export default function DroneYardStack({ stack }) {
     },
   });
 
-  // Create our AWS Batch job queue
+  // Create our AWS Batch job queue and connect it to the compute environment
   const jobQueue = new batch.JobQueue(stack, 'DroneYardJobQueue', {
     computeEnvironments: [
       {
@@ -79,7 +81,7 @@ export default function DroneYardStack({ stack }) {
     ],
   });
 
-  // Create our guest image (e.g. the docker image)
+  // Create our guest image (e.g. the docker image from the DockerFile)
   const dockerImage = new DockerImageAsset(stack, 'DroneYardDockerImage', {
     directory: path.join(__dirname, awsConfig.computeEnv.useGpu ? 'dockergpu' : 'docker'),
   });
@@ -97,10 +99,10 @@ export default function DroneYardStack({ stack }) {
       ],
       gpuCount: awsConfig.computeEnv.useGpu ? 1 : 0,
       image: ecs.ContainerImage.fromDockerImageAsset(dockerImage),
-      // TODO: Create the docker image in ECR?
       logConfiguration: {
         logDriver: batch.LogDriver.AWSLOGS,
       },
+      // TODO: Probably could set this dynamically or make it a part of the config
       memoryLimitMiB: 120000,
       mountPoints: [{
         containerPath: '/local',
@@ -116,6 +118,7 @@ export default function DroneYardStack({ stack }) {
         },
       }],
     },
+    // TODO: Make this configurable
     timeout: Duration.hours(24),
   });
 
@@ -130,10 +133,13 @@ export default function DroneYardStack({ stack }) {
         },
       },
     },
+
+    // Trigger this lambda when a file ending in 'dispatch' is uploaded to an S3 directory
     notifications: {
       dispatch_notification: {
         function: 'functions/dispatch_batch_job.handler',
-        events: ['object_created'], // TODO: Consider whether tags make more sense than files?
+        // TODO: Consider whether triggering on tags make more sense than files?
+        events: ['object_created'],
         filters: [{ suffix: 'dispatch' }],
       },
     },
