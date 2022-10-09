@@ -1,8 +1,9 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import { Api, Bucket } from '@serverless-stack/resources';
+import { Bucket } from '@serverless-stack/resources';
 import * as batch from '@aws-cdk/aws-batch-alpha';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
 import { Duration } from 'aws-cdk-lib';
 
@@ -14,14 +15,6 @@ const awsConfig = require('../awsconfig.json');
 const __dirname = path.resolve();
 
 export default function DroneYardStack({ stack }) {
-  // TODO: Create the API for dispatching an AWS batch job, should not be callable directly
-  // only from S3 events, so this probably will get deleted in the future
-  const api = new Api(stack, 'api', {
-    routes: {
-      'GET /': 'functions/dispatch_batch_job.handler',
-    },
-  });
-
   // Create our AWS Batch resources
   // Create VPC, so this project won't interfere with other things
   const vpc = ec2.Vpc.fromLookup(stack, 'VPC', {
@@ -48,6 +41,17 @@ export default function DroneYardStack({ stack }) {
   }
 
   // Compute environment
+  const dockerRole = new iam.Role(stack, 'instance-role', {
+    assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+    description: 'Execution role for the docker container, has access to the DroneYard S3 bucket',
+    managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2ContainerServiceforEC2Role')],
+  });
+
+  const instanceProfile = new iam.CfnInstanceProfile(stack, 'instance-profile', {
+    instanceProfileName: 'instance-profile',
+    roles: [dockerRole.roleName],
+  });
+
   const awsManagedEnvironment = new batch.ComputeEnvironment(stack, 'DroneYardComputeEnvironment', {
     computeResources: {
       type: batch.ComputeResourceType.SPOT,
@@ -55,6 +59,7 @@ export default function DroneYardStack({ stack }) {
       minvCpus: awsConfig.computeEnv.minvCpus,
       maxvCpus: awsConfig.computeEnv.maxvCpus,
       instanceTypes: awsConfig.computeEnv.instanceTypes,
+      instanceRole: instanceProfile.attrArn,
       vpc,
       image,
       launchTemplate: {
@@ -83,8 +88,8 @@ export default function DroneYardStack({ stack }) {
   const jobDefinition = new batch.JobDefinition(stack, 'DroneYardJobDefinition', {
     container: {
       command: [
-        //'sh',
-        //'-c',
+        'sh',
+        '-c',
         '/entry.sh',
         'Ref::bucket',
         'Ref::key',
@@ -135,10 +140,10 @@ export default function DroneYardStack({ stack }) {
   });
 
   dronePhotosBucket.attachPermissions(['s3', 'batch']);
+  dronePhotosBucket.cdk.bucket.grantReadWrite(dockerRole);
 
   // Console outputs
   stack.addOutputs({
-    ApiEndpoint: api.url,
     BucketName: dronePhotosBucket.bucketName,
     BucketArn: dronePhotosBucket.bucketArn,
     ComputeEnvironment: awsManagedEnvironment.computeEnvironmentArn,
