@@ -1,6 +1,14 @@
 #!/bin/bash
 
 #set -e
+
+# Copyright 2021-2022 Howard Butler <howard@hobu.co>
+# with contributions from Michael D. Smith <https://github.com/msmitherdc>
+
+# The following code is a derivative work of the code from the codm project,
+# which is licensed GPLv3. This code therefore is also licensed under the terms
+# of the GNU Public License, verison 3.
+
 echo "Launching DroneYard"
 
 BUCKET="$4"

@@ -5,6 +5,13 @@ Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
 Content-Type: text/x-shellscript; charset="us-ascii"
 
 #!/bin/sh
+
+# Copyright 2021-2022 Howard Butler <howard@hobu.co>
+
+# The following code is a derivative work of the code from the codm project,
+# which is licensed GPLv3. This code therefore is also licensed under the terms
+# of the GNU Public License, verison 3.
+
 # Mount SSD.
 BIG=$(lsblk -b | grep nvme | awk '{print $4 " " $1}' | sort -k 1 -r -n | \
     head -n 1 | awk '{print $2}')
