@@ -15,7 +15,7 @@ const awsConfig = require('../awsconfig.json');
 // eslint-disable-next-line no-underscore-dangle
 const __dirname = path.resolve();
 
-export default function DroneYardStack({ stack }) {
+export default function DroneYardStack({ app, stack }) {
   // Get the default VPC
   const vpc = ec2.Vpc.fromLookup(stack, 'VPC', {
     // This imports the default VPC but you can also
@@ -26,7 +26,7 @@ export default function DroneYardStack({ stack }) {
   // Create our launch template (mainly we need to attach the userdata.sh script as user data)
   const userData = fs.readFileSync('./userdata.sh', 'base64').toString();
   const launchTemplate = new ec2.CfnLaunchTemplate(stack, 'DroneYardLaunchTemplate', {
-    launchTemplateName: 'DroneYardLaunchTemplate',
+    launchTemplateName: `${app.stage}-DroneYardLaunchTemplate`,
     launchTemplateData: {
       userData,
     },
@@ -50,7 +50,7 @@ export default function DroneYardStack({ stack }) {
   });
 
   const instanceProfile = new iam.CfnInstanceProfile(stack, 'instance-profile', {
-    instanceProfileName: 'instance-profile',
+    instanceProfileName: `${app.stage}-DroneYard-instance-profile`,
     roles: [dockerRole.roleName],
   });
 
