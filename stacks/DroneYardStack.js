@@ -4,6 +4,7 @@ import * as batch from '@aws-cdk/aws-batch-alpha';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as s3Deploy from 'aws-cdk-lib/aws-s3-deployment';
 import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
 import { Duration } from 'aws-cdk-lib';
 
@@ -145,8 +146,16 @@ export default function DroneYardStack({ stack }) {
     },
   });
 
+  // Set permissions on the bucket
   dronePhotosBucket.attachPermissions(['s3', 'batch']);
   dronePhotosBucket.cdk.bucket.grantReadWrite(dockerRole);
+
+  // Upload the settings.yaml file
+  // eslint-disable-next-line no-new
+  new s3Deploy.BucketDeployment(stack, 'settings yaml', {
+    sources: [s3Deploy.Source.asset(__dirname, { exclude: ['**', '.*', '!settings.yaml'] })],
+    destinationBucket: dronePhotosBucket.cdk.bucket,
+  });
 
   // Console outputs
   stack.addOutputs({
