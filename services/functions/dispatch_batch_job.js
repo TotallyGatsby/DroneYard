@@ -22,7 +22,7 @@ export const handler = async (event) => {
   });
 
   // Create an AWS batch job to process each path
-  jobPaths.forEach((path) => {
+  await Promise.all(jobPaths.map(async (path) => {
     log.info('Execution', `Sending batch job for ${JSON.stringify(path)}`);
 
     const params = {
@@ -38,11 +38,14 @@ export const handler = async (event) => {
       },
     };
 
-    Batch.submitJob(params, (err, data) => {
-      if (err) log.error(err, err.stack); // an error occurred
-      else log.info('Execution', JSON.stringify(data)); // successful response)
-    });
-  });
+    log.info('Execution', `Launching with params: ${JSON.stringify(params)}`);
+    try {
+      const results = await Batch.submitJob(params).promise();
+      log.info('Execution', JSON.stringify(results)); // successful response)
+    } catch (err) {
+      log.error('Execution', err.message);
+    }
+  }));
 
   return {
     statusCode: 200,
