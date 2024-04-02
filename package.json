@@ -4,18 +4,18 @@
   "license": "GPL-3.0",
   "private": false,
   "scripts": {
-    "start": "sst start",
+    "start": "sst dev",
     "build": "sst build",
     "deploy": "sst deploy",
     "remove": "sst remove",
     "console": "sst console",
-    "test": "sst load-config -- vitest run"
+    "test": "sst bind vitest run"
   },
   "devDependencies": {
-    "@serverless-stack/cli": "^1.15.8",
-    "@serverless-stack/resources": "^1.15.8",
+    "sst": "2.0.1",
+    "constructs": "10.1.156",
     "@tsconfig/node16": "^1.0.3",
-    "aws-cdk-lib": "2.39.1",
+    "aws-cdk-lib": "2.62.2",
     "eslint": "^8.15.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.26.0",
@@ -26,7 +26,7 @@
     "services"
   ],
   "dependencies": {
-    "@aws-cdk/aws-batch-alpha": "2.39.1-alpha.0",
+    "@aws-cdk/aws-batch-alpha": "^2.62.2-alpha.0",
     "npmlog": "^6.0.2"
   }
 }
