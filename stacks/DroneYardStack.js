@@ -1,11 +1,11 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import { Bucket } from '@serverless-stack/resources';
+import { Bucket } from 'sst/constructs';
 import * as batch from '@aws-cdk/aws-batch-alpha';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3Deploy from 'aws-cdk-lib/aws-s3-deployment';
-import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
+import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { Duration } from 'aws-cdk-lib';
 
 const fs = require('fs');
@@ -85,6 +85,7 @@ export default function DroneYardStack({ app, stack }) {
   // Create our guest image (e.g. the docker image from the DockerFile)
   const dockerImage = new DockerImageAsset(stack, 'DroneYardDockerImage', {
     directory: path.join(__dirname, awsConfig.computeEnv.useGpu ? 'dockergpu' : 'docker'),
+    platform: Platform.LINUX_ARM64,
   });
 
   // Create our AWS Batch Job Definition
@@ -138,7 +139,7 @@ export default function DroneYardStack({ app, stack }) {
     // Trigger this lambda when a file ending in 'dispatch' is uploaded to an S3 directory
     notifications: {
       dispatch_notification: {
-        function: 'functions/dispatch_batch_job.handler',
+        function: 'services/functions/dispatch_batch_job.handler',
         // TODO: Consider whether triggering on tags make more sense than files?
         events: ['object_created'],
         filters: [{ suffix: 'dispatch' }],

@@ -1,5 +1,0 @@
-{
-  "name": "drone-yard",
-  "region": "us-west-2",
-  "main": "stacks/index.js"
-}
